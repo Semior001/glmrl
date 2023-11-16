@@ -28,10 +28,11 @@ type Actor[T any] interface {
 
 // Table is a table model.
 type Table[T any] struct {
-	table table.Model
-	src   Actor[T]
-	cols  []Column[T]
-	data  struct {
+	table        table.Model
+	src          Actor[T]
+	cols         []Column[T]
+	pollInterval time.Duration
+	data         struct {
 		mu         sync.Mutex
 		entries    []T
 		lastReload time.Time
@@ -39,7 +40,7 @@ type Table[T any] struct {
 }
 
 // NewTable creates a new Table.
-func NewTable[T any](cols []Column[T], act Actor[T]) (*Table[T], error) {
+func NewTable[T any](cols []Column[T], act Actor[T], pollInterval time.Duration) (*Table[T], error) {
 	tbl := &Table[T]{src: act, cols: cols}
 	tbl.table = table.New()
 	s := table.DefaultStyles()
@@ -214,5 +215,5 @@ func (t *Table[T]) reloadCmd() tea.Cmd {
 }
 
 func (t *Table[T]) scheduleTick() tea.Cmd {
-	return tea.Tick(30*time.Second, func(time.Time) tea.Msg { return tickMsg{} })
+	return tea.Tick(t.pollInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }

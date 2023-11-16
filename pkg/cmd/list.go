@@ -9,6 +9,7 @@ import (
 	"github.com/Semior001/glmrl/pkg/service"
 	"github.com/Semior001/glmrl/pkg/tui"
 	"github.com/Semior001/glmrl/pkg/tui/teax"
+	"time"
 )
 
 // List lists all merge requests that satisfy the given criteria.
@@ -29,7 +30,8 @@ type List struct {
 		Page    int `long:"page" description:"page number"`
 		PerPage int `long:"per-page" description:"number of items per page"`
 	} `group:"pagination" namespace:"pagination" env-namespace:"PAGINATION" description:"pagination options, provide none to list all"`
-	Action string `long:"action" choice:"open" choice:"copy" default:"copy" description:"action to perform on pressing enter"`
+	Action       string        `long:"action" choice:"open" choice:"copy" default:"copy" description:"action to perform on pressing enter"`
+	PollInterval time.Duration `long:"poll-interval" default:"5m" description:"interval to poll for new merge requests"`
 }
 
 // Execute runs the command.
@@ -53,7 +55,12 @@ func (c List) Execute([]string) error {
 		ProjectPaths:           misc.Filter[string]{Include: c.ProjectPaths.Include, Exclude: c.ProjectPaths.Exclude},
 	}
 
-	tbl, err := tui.NewListPR(ctx, c.Service, req, c.Action == "open")
+	tbl, err := tui.NewListPR(ctx, tui.ListPRParams{
+		Service:      c.Service,
+		Request:      req,
+		OpenOnEnter:  c.Action == "open",
+		PollInterval: c.PollInterval,
+	})
 	if err != nil {
 		return fmt.Errorf("initialize list prs tui: %w", err)
 	}

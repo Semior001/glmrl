@@ -11,25 +11,27 @@ import (
 	"github.com/pkg/browser"
 	"github.com/samber/lo"
 	"log"
+	"time"
 )
 
 // ListPR is a TUI to list merge requests.
 type ListPR struct {
-	ctx         context.Context
-	svc         *service.Service
-	req         service.ListPRsRequest
-	openOnEnter bool
+	ctx context.Context
+	ListPRParams
+}
+
+// ListPRParams are the parameters to initialize a ListPR TUI.
+type ListPRParams struct {
+	Service      *service.Service
+	Request      service.ListPRsRequest
+	OpenOnEnter  bool
+	PollInterval time.Duration
 }
 
 // NewListPR returns a new ListPR TUI.
-func NewListPR(
-	ctx context.Context,
-	svc *service.Service,
-	req service.ListPRsRequest,
-	openOnEnter bool,
-) (*teax.Table[git.PullRequest], error) {
-	a := &ListPR{ctx: ctx, svc: svc, req: req, openOnEnter: openOnEnter}
-	tbl, err := teax.NewTable(ListPRColumns, a)
+func NewListPR(ctx context.Context, params ListPRParams) (*teax.Table[git.PullRequest], error) {
+	a := &ListPR{ctx: ctx, ListPRParams: params}
+	tbl, err := teax.NewTable(ListPRColumns, a, params.PollInterval)
 	if err != nil {
 		return nil, fmt.Errorf("new table: %w", err)
 	}
@@ -39,7 +41,7 @@ func NewListPR(
 
 // Load loads the merge requests.
 func (l *ListPR) Load() ([]git.PullRequest, error) {
-	prs, err := l.svc.ListPullRequests(l.ctx, l.req)
+	prs, err := l.Service.ListPullRequests(l.ctx, l.Request)
 	if err != nil {
 		return nil, fmt.Errorf("list merge requests: %w", err)
 	}
@@ -50,7 +52,7 @@ func (l *ListPR) Load() ([]git.PullRequest, error) {
 // OnEnter either opens the merge request in the browser or copies the URL to
 // the clipboard.
 func (l *ListPR) OnEnter(pr git.PullRequest) error {
-	if l.openOnEnter {
+	if l.OpenOnEnter {
 		if err := browser.OpenURL(pr.URL); err != nil {
 			return fmt.Errorf("open URL %q: %w", pr.URL, err)
 		}
