@@ -102,11 +102,11 @@ var ListPRColumns = []teax.Column[git.PullRequest]{
 		Extract: func(pr git.PullRequest) string { return pr.Project.Name },
 	},
 	{
-		Column:  table.Column{Title: "Number", Width: 2},
+		Column:  table.Column{Title: "No.", Width: 1},
 		Extract: func(pr git.PullRequest) string { return strconv.Itoa(pr.Number) },
 	},
 	{
-		Column:  table.Column{Title: "Title (last update: {{.LastReload.Format \"15:04:05\" }}, Δ: {{.LoadedIn.String}})", Width: 14},
+		Column:  table.Column{Title: "Title (last update: {{.LastReload.Format \"15:04:05\" }}, Δ: {{.LoadedIn.String}})", Width: 16},
 		Extract: func(pr git.PullRequest) string { return pr.Title },
 	},
 	{
