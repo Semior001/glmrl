@@ -15,14 +15,14 @@ import (
 // List lists all merge requests that satisfy the given criteria.
 type List struct {
 	CommonOpts
-	State              git.State    `long:"state" description:"list only merge requests with the given state"`
-	Labels             FilterGroup  `group:"labels" namespace:"labels" env-namespace:"LABELS"`
-	Authors            FilterGroup  `group:"authors" namespace:"authors" env-namespace:"AUTHORS"`
-	ProjectPaths       FilterGroup  `group:"project-paths" namespace:"project-paths" env-namespace:"PROJECT_PATHS"`
-	ApprovedByMe       NillableBool `long:"approved-by-me" choice:"true" choice:"false" choice:"" description:"list only merge requests approved by me"`
-	MyThreadsResolved  NillableBool `long:"my-threads-resolved" choice:"true" choice:"false" choice:"" description:"list only merge requests with my threads resolved"`
-	NotEnoughApprovals NillableBool `long:"not-enough-approvals" description:"list only merge requests with not enough approvals"`
-	Sort               struct {
+	State                      git.State    `long:"state" description:"list only merge requests with the given state"`
+	Labels                     FilterGroup  `group:"labels" namespace:"labels" env-namespace:"LABELS"`
+	Authors                    FilterGroup  `group:"authors" namespace:"authors" env-namespace:"AUTHORS"`
+	ProjectPaths               FilterGroup  `group:"project-paths" namespace:"project-paths" env-namespace:"PROJECT_PATHS"`
+	ApprovedByMe               NillableBool `long:"approved-by-me" choice:"true" choice:"false" choice:"" description:"list only merge requests approved by me"`
+	WithoutMyUnresolvedThreads bool         `long:"without-my-unresolved-threads" description:"list only merge requests without MY unresolved threads"`
+	NotEnoughApprovals         NillableBool `long:"not-enough-approvals" description:"list only merge requests with not enough approvals"`
+	Sort                       struct {
 		By    string         `long:"by" choice:"created" choice:"updated" choice:"title" default:"created" description:"sort by the given field"`
 		Order misc.SortOrder `long:"order" choice:"asc" choice:"desc" default:"desc" description:"sort in the given order"`
 	} `group:"sort" namespace:"sort" env-namespace:"SORT"`
@@ -48,11 +48,11 @@ func (c List) Execute([]string) error {
 			},
 			Pagination: misc.Pagination{Page: c.Pagination.Page, PerPage: c.Pagination.PerPage},
 		},
-		ApprovedByMe:           c.ApprovedByMe.Value(),
-		MyThreadsResolved:      c.MyThreadsResolved.Value(),
-		SatisfiesApprovalRules: Not(c.NotEnoughApprovals).Value(),
-		Authors:                misc.Filter[string]{Include: c.Authors.Include, Exclude: c.Authors.Exclude},
-		ProjectPaths:           misc.Filter[string]{Include: c.ProjectPaths.Include, Exclude: c.ProjectPaths.Exclude},
+		ApprovedByMe:               c.ApprovedByMe.Value(),
+		WithoutMyUnresolvedThreads: c.WithoutMyUnresolvedThreads,
+		SatisfiesApprovalRules:     Not(c.NotEnoughApprovals).Value(),
+		Authors:                    misc.Filter[string]{Include: c.Authors.Include, Exclude: c.Authors.Exclude},
+		ProjectPaths:               misc.Filter[string]{Include: c.ProjectPaths.Include, Exclude: c.ProjectPaths.Exclude},
 	}
 
 	tbl, err := tui.NewListPR(ctx, tui.ListPRParams{

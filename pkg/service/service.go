@@ -32,11 +32,11 @@ func NewService(ctx context.Context, engine engine.Interface) (*Service, error) 
 type ListPRsRequest struct {
 	engine.ListPRsRequest
 
-	ApprovedByMe           *bool
-	MyThreadsResolved      *bool
-	SatisfiesApprovalRules *bool
-	Authors                misc.Filter[string]
-	ProjectPaths           misc.Filter[string]
+	WithoutMyUnresolvedThreads bool
+	ApprovedByMe               *bool
+	SatisfiesApprovalRules     *bool
+	Authors                    misc.Filter[string]
+	ProjectPaths               misc.Filter[string]
 }
 
 // ListPullRequests calls an underlying git engine client to list pull requests and filters them by the provided
@@ -71,11 +71,11 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 		})
 	}
 
-	if req.MyThreadsResolved != nil {
+	if req.WithoutMyUnresolvedThreads {
 		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return lo.ContainsBy(pr.Threads, func(c git.Comment) bool {
-				return c.Author.Username == s.me.Username && c.Resolved
-			}) == *req.MyThreadsResolved
+			return !lo.ContainsBy(pr.Threads, func(c git.Comment) bool {
+				return c.Author.Username == s.me.Username && !c.Resolved
+			})
 		})
 	}
 
