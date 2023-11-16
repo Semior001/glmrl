@@ -18,3 +18,5 @@ func Run(ctx context.Context, model tea.Model) error {
 
 	return nil
 }
+
+type tickMsg struct{}

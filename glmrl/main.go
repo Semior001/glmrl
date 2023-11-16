@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/logutils"
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v3"
+	"io"
 	"log"
 	"os"
 	"runtime/debug"
@@ -114,15 +115,10 @@ func initCommon(opts options) (cmd.CommonOpts, error) {
 }
 
 func setupLog(dbg bool) {
-	f, err := os.OpenFile("glmrl.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("[ERROR] error opening file: %v", err)
-	}
-
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "INFO", "WARN", "ERROR"},
 		MinLevel: "INFO",
-		Writer:   f,
+		Writer:   io.Discard,
 	}
 
 	logFlags := log.Ltime
@@ -130,6 +126,13 @@ func setupLog(dbg bool) {
 	if dbg {
 		logFlags = log.Ltime | log.Lmicroseconds | log.Lshortfile
 		filter.MinLevel = "DEBUG"
+
+		f, err := os.OpenFile("glmrl.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("[ERROR] error opening file: %v", err)
+		}
+
+		filter.Writer = f
 	}
 
 	log.SetFlags(logFlags)

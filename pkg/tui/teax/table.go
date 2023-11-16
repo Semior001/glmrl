@@ -67,7 +67,7 @@ func NewTable[T any](cols []Column[T], act Actor[T]) (*Table[T], error) {
 		return nil, fmt.Errorf("redraw columns: %w", err)
 	}
 
-	if err = tbl.reload(); err != nil {
+	if _, err = tbl.reload(); err != nil {
 		return nil, fmt.Errorf("load for the first time: %w", err)
 	}
 
@@ -78,11 +78,15 @@ func NewTable[T any](cols []Column[T], act Actor[T]) (*Table[T], error) {
 func (t *Table[T]) Focus() { t.table.Focus() }
 
 // Init does nothing.
-func (t *Table[T]) Init() tea.Cmd { return nil }
+func (t *Table[T]) Init() tea.Cmd { return t.scheduleTick() }
 
 // Update updates the table model.
 func (t *Table[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	log.Printf("[DEBUG][TUI-Table] received message: %#v", msg)
+
+	if _, ok := msg.(tickMsg); ok {
+		return t, tea.Batch(t.reloadCmd(), t.scheduleTick())
+	}
 
 	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		t.resize(msg.Width, msg.Height)
@@ -123,20 +127,20 @@ func (t *Table[T]) resize(w, h int) {
 	t.table.SetHeight(h - 2) // cut off the status bar
 }
 
-func (t *Table[T]) reload() error {
+func (t *Table[T]) reload() (updated bool, err error) {
 	t.data.mu.Lock()
 	defer t.data.mu.Unlock()
 
 	// do not allow to reload more often than once per 30 seconds
 	if time.Since(t.data.lastReload) < 30*time.Second {
-		return nil
+		return false, nil
 	}
 
 	t.data.lastReload = time.Now()
 
 	entries, err := t.src.Load()
 	if err != nil {
-		return fmt.Errorf("load entries: %w", err)
+		return false, fmt.Errorf("load entries: %w", err)
 	}
 	t.data.entries = entries
 
@@ -148,7 +152,7 @@ func (t *Table[T]) reload() error {
 		}))
 	}
 
-	return nil
+	return true, nil
 }
 
 func (t *Table[T]) redrawColumns() error {
@@ -197,10 +201,18 @@ func (t *Table[T]) enterCmd() tea.Cmd {
 
 func (t *Table[T]) reloadCmd() tea.Cmd {
 	return func() tea.Msg {
-		if err := t.reload(); err != nil {
+		upd, err := t.reload()
+		if err != nil {
 			log.Printf("[ERROR][TUI-Table] reload: %v", err)
 			return tea.Quit
 		}
-		return tea.ClearScreen()
+		if upd {
+			return tea.ClearScreen()
+		}
+		return nil
 	}
+}
+
+func (t *Table[T]) scheduleTick() tea.Cmd {
+	return tea.Tick(30*time.Second, func(time.Time) tea.Msg { return tickMsg{} })
 }
