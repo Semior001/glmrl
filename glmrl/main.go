@@ -30,7 +30,7 @@ var version = "unknown"
 
 func getVersion() string {
 	v, ok := debug.ReadBuildInfo()
-	if !ok || v.Main.Version == "(devel)" {
+	if !ok || v.Main.Version == "(devel)" || v.Main.Version == "" {
 		return version
 	}
 	return v.Main.Version

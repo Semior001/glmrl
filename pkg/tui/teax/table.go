@@ -28,20 +28,26 @@ type Actor[T any] interface {
 
 // Table is a table model.
 type Table[T any] struct {
-	table        table.Model
-	src          Actor[T]
-	cols         []Column[T]
-	pollInterval time.Duration
-	data         struct {
+	table table.Model
+	data  struct {
 		mu         sync.Mutex
 		entries    []T
 		lastReload time.Time
 	}
+	TableParams[T]
+}
+
+// TableParams are the parameters to initialize a Table.
+type TableParams[T any] struct {
+	Columns        []Column[T]
+	Actor          Actor[T]
+	PollInterval   time.Duration
+	BorrowedHeight int // table will cut off these lines from the top at render
 }
 
 // NewTable creates a new Table.
-func NewTable[T any](cols []Column[T], act Actor[T], pollInterval time.Duration) (*Table[T], error) {
-	tbl := &Table[T]{src: act, cols: cols}
+func NewTable[T any](params TableParams[T]) (*Table[T], error) {
+	tbl := &Table[T]{TableParams: params}
 	tbl.table = table.New()
 	s := table.DefaultStyles()
 	s.Header = s.Header.
@@ -125,7 +131,7 @@ func (t *Table[T]) View() string {
 
 func (t *Table[T]) resize(w, h int) {
 	t.table.SetWidth(w)
-	t.table.SetHeight(h - 2) // cut off the status bar
+	t.table.SetHeight(h - 2 - t.BorrowedHeight) // cut off the status bar and the borrowed height
 }
 
 func (t *Table[T]) reload() (updated bool, err error) {
@@ -139,7 +145,7 @@ func (t *Table[T]) reload() (updated bool, err error) {
 
 	t.data.lastReload = time.Now()
 
-	entries, err := t.src.Load()
+	entries, err := t.Actor.Load()
 	if err != nil {
 		return false, fmt.Errorf("load entries: %w", err)
 	}
@@ -147,7 +153,7 @@ func (t *Table[T]) reload() (updated bool, err error) {
 
 	if len(t.data.entries) > 0 {
 		t.table.SetRows(lo.Map(t.data.entries, func(entry T, _ int) table.Row {
-			return lo.Map(t.cols, func(col Column[T], _ int) string {
+			return lo.Map(t.Columns, func(col Column[T], _ int) string {
 				return col.Extract(entry)
 			})
 		}))
@@ -162,11 +168,11 @@ func (t *Table[T]) redrawColumns() error {
 		Total      int
 	}
 
-	widthPerUnit := t.table.Width() / lo.Sum(lo.Map(t.cols, func(c Column[T], _ int) int { return c.Width }))
+	widthPerUnit := t.table.Width() / lo.Sum(lo.Map(t.Columns, func(c Column[T], _ int) int { return c.Width }))
 
 	data := columnData{LastReload: t.data.lastReload, Total: len(t.data.entries)}
-	cols := make([]table.Column, len(t.cols))
-	for idx, col := range t.cols {
+	cols := make([]table.Column, len(t.Columns))
+	for idx, col := range t.Columns {
 		tmpl, err := template.New("").Parse(col.Title)
 		if err != nil {
 			return fmt.Errorf("parse template: %w", err)
@@ -191,7 +197,7 @@ func (t *Table[T]) enterCmd() tea.Cmd {
 			return nil
 		}
 
-		if err := t.src.OnEnter(t.data.entries[t.table.Cursor()]); err != nil {
+		if err := t.Actor.OnEnter(t.data.entries[t.table.Cursor()]); err != nil {
 			log.Printf("[ERROR][TUI-Table] OnEnter callback returned error: %v", err)
 			return tea.Quit
 		}
@@ -215,5 +221,5 @@ func (t *Table[T]) reloadCmd() tea.Cmd {
 }
 
 func (t *Table[T]) scheduleTick() tea.Cmd {
-	return tea.Tick(t.pollInterval, func(time.Time) tea.Msg { return tickMsg{} })
+	return tea.Tick(t.PollInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }

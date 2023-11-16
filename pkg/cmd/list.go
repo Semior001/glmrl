@@ -60,6 +60,7 @@ func (c List) Execute([]string) error {
 		Request:      req,
 		OpenOnEnter:  c.Action == "open",
 		PollInterval: c.PollInterval,
+		Version:      c.Version,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize list prs tui: %w", err)

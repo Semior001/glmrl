@@ -8,6 +8,8 @@ import (
 	"github.com/Semior001/glmrl/pkg/tui/teax"
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 	"github.com/samber/lo"
 	"log"
@@ -18,6 +20,7 @@ import (
 type ListPR struct {
 	ctx context.Context
 	ListPRParams
+	tea.Model
 }
 
 // ListPRParams are the parameters to initialize a ListPR TUI.
@@ -26,17 +29,24 @@ type ListPRParams struct {
 	Request      service.ListPRsRequest
 	OpenOnEnter  bool
 	PollInterval time.Duration
+	Version      string
 }
 
 // NewListPR returns a new ListPR TUI.
-func NewListPR(ctx context.Context, params ListPRParams) (*teax.Table[git.PullRequest], error) {
+func NewListPR(ctx context.Context, params ListPRParams) (tea.Model, error) {
 	a := &ListPR{ctx: ctx, ListPRParams: params}
-	tbl, err := teax.NewTable(ListPRColumns, a, params.PollInterval)
+	tbl, err := teax.NewTable(teax.TableParams[git.PullRequest]{
+		Columns:        ListPRColumns,
+		Actor:          a,
+		PollInterval:   params.PollInterval,
+		BorrowedHeight: 1, // version line
+	})
 	if err != nil {
 		return nil, fmt.Errorf("new table: %w", err)
 	}
 	tbl.Focus()
-	return tbl, nil
+	a.Model = tbl
+	return a, nil
 }
 
 // Load loads the merge requests.
@@ -64,6 +74,17 @@ func (l *ListPR) OnEnter(pr git.PullRequest) error {
 	}
 
 	return nil
+}
+
+// Update updates the model.
+func (l *ListPR) Update(msg tea.Msg) (_ tea.Model, cmd tea.Cmd) {
+	l.Model, cmd = l.Model.Update(msg)
+	return l, cmd
+}
+
+// View adds the version to the table view.
+func (l *ListPR) View() string {
+	return lipgloss.JoinVertical(lipgloss.Top, Version(l.Version), l.Model.View())
 }
 
 type loggingWriter string
