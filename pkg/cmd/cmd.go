@@ -36,3 +36,15 @@ func (b NillableBool) Value() *bool {
 		return nil
 	}
 }
+
+// Not returns the opposite value of the nillable bool, except for nil, which is nil.
+func Not(b NillableBool) NillableBool {
+	switch b {
+	case "true":
+		return "false"
+	case "false":
+		return "true"
+	default:
+		return ""
+	}
+}
