@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/browser"
 	"github.com/samber/lo"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -97,23 +98,27 @@ func (w loggingWriter) Write(p []byte) (n int, err error) {
 // ListPRColumns are the columns to show in the table.
 var ListPRColumns = []teax.Column[git.PullRequest]{
 	{
-		Column:  table.Column{Title: `Total: {{.Total}}`, Width: 2},
-		Extract: func(pr git.PullRequest) string { return pr.Project.FullPath },
+		Column:  table.Column{Title: `Total: {{.Total}}`, Width: 6},
+		Extract: func(pr git.PullRequest) string { return pr.Project.Name },
 	},
 	{
-		Column:  table.Column{Title: "Title (last update: {{.LastReload.Format \"15:04:05\" }}, Δ: {{.LoadedIn.String}})", Width: 5},
+		Column:  table.Column{Title: "Number", Width: 2},
+		Extract: func(pr git.PullRequest) string { return strconv.Itoa(pr.Number) },
+	},
+	{
+		Column:  table.Column{Title: "Title (last update: {{.LastReload.Format \"15:04:05\" }}, Δ: {{.LoadedIn.String}})", Width: 14},
 		Extract: func(pr git.PullRequest) string { return pr.Title },
 	},
 	{
-		Column:  table.Column{Title: "Author", Width: 1},
+		Column:  table.Column{Title: "Author", Width: 4},
 		Extract: func(pr git.PullRequest) string { return pr.Author.Username },
 	},
 	{
-		Column:  table.Column{Title: "Created At", Width: 1},
+		Column:  table.Column{Title: "Created At", Width: 3},
 		Extract: func(pr git.PullRequest) string { return pr.CreatedAt.Format("2006-01-02") },
 	},
 	{
-		Column: table.Column{Title: "Threads open", Width: 1},
+		Column: table.Column{Title: "Threads", Width: 2},
 		Extract: func(pr git.PullRequest) string {
 			resolved := lo.CountBy(pr.Threads, func(t git.Comment) bool { return t.Resolved })
 			return fmt.Sprintf("%d/%d (%s)",
@@ -123,7 +128,7 @@ var ListPRColumns = []teax.Column[git.PullRequest]{
 		},
 	},
 	{
-		Column: table.Column{Title: "Approvals", Width: 1},
+		Column: table.Column{Title: "Approvals", Width: 3},
 		Extract: func(pr git.PullRequest) string {
 			return fmt.Sprintf("%d/%d (%s)",
 				len(pr.Approvals.By), pr.Approvals.Required,

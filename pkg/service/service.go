@@ -74,7 +74,9 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 	if req.WithoutMyUnresolvedThreads {
 		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
 			return !lo.ContainsBy(pr.Threads, func(c git.Comment) bool {
-				return c.Author.Username == s.me.Username && !c.Resolved
+				myUnresolved := c.Author.Username == s.me.Username && !c.Resolved
+				requiresMyAction := c.Last().Author.Username != s.me.Username
+				return myUnresolved && !requiresMyAction
 			})
 		})
 	}

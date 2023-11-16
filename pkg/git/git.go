@@ -65,6 +65,14 @@ type Comment struct {
 	Child     *Comment  `json:"child"`
 }
 
+// Last returns the last comment in the thread.
+func (c *Comment) Last() Comment {
+	if c.Child == nil {
+		return *c
+	}
+	return c.Child.Last()
+}
+
 // Event describes a pull request event.
 type Event struct {
 	ID string `json:"id"`

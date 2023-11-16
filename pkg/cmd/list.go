@@ -20,7 +20,7 @@ type List struct {
 	Authors                    FilterGroup  `group:"authors" namespace:"authors" env-namespace:"AUTHORS"`
 	ProjectPaths               FilterGroup  `group:"project-paths" namespace:"project-paths" env-namespace:"PROJECT_PATHS"`
 	ApprovedByMe               NillableBool `long:"approved-by-me" choice:"true" choice:"false" choice:"" description:"list only merge requests approved by me"`
-	WithoutMyUnresolvedThreads bool         `long:"without-my-unresolved-threads" description:"list only merge requests without MY unresolved threads"`
+	WithoutMyUnresolvedThreads bool         `long:"without-my-unresolved-threads" description:"list only merge requests without MY unresolved threads, but lists threads where my action is required"`
 	NotEnoughApprovals         NillableBool `long:"not-enough-approvals" description:"list only merge requests with not enough approvals"`
 	Sort                       struct {
 		By    string         `long:"by" choice:"created" choice:"updated" choice:"title" default:"created" description:"sort by the given field"`
