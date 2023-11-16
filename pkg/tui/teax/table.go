@@ -61,9 +61,7 @@ func NewTable[T any](cols []Column[T], act Actor[T]) (*Table[T], error) {
 	}
 
 	log.Printf("[DEBUG] terminal size: %dx%d, setting to table", width, height)
-	tbl.table.SetWidth(width)
-	tbl.table.SetHeight(height)
-	tbl.table.Focus()
+	tbl.resize(width, height)
 
 	if err = tbl.redrawColumns(); err != nil {
 		return nil, fmt.Errorf("redraw columns: %w", err)
@@ -76,13 +74,61 @@ func NewTable[T any](cols []Column[T], act Actor[T]) (*Table[T], error) {
 	return tbl, nil
 }
 
+// Focus focuses the table.
+func (t *Table[T]) Focus() { t.table.Focus() }
+
+// Init does nothing.
+func (t *Table[T]) Init() tea.Cmd { return nil }
+
+// Update updates the table model.
+func (t *Table[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Printf("[DEBUG][TUI-Table] received message: %#v", msg)
+
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
+		t.resize(msg.Width, msg.Height)
+
+		log.Printf("[DEBUG][TUI-Table] resizing table to new window size: %dx%d", msg.Width, msg.Height)
+		return t, tea.ClearScreen
+	}
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return t, tea.Quit
+		case "enter":
+			return t, t.enterCmd()
+		case "r":
+			return t, t.reloadCmd()
+		}
+	}
+
+	var cmd tea.Cmd
+	t.table, cmd = t.table.Update(msg)
+	return t, cmd
+}
+
+// View renders the table.
+func (t *Table[T]) View() string {
+	t.data.mu.Lock()
+	defer t.data.mu.Unlock()
+	if err := t.redrawColumns(); err != nil {
+		log.Printf("[ERROR][TUI-Table] redraw columns: %v", err)
+		return fmt.Sprintf("failed to render table: %v", err)
+	}
+	return t.table.View()
+}
+
+func (t *Table[T]) resize(w, h int) {
+	t.table.SetWidth(w)
+	t.table.SetHeight(h - 2) // cut off the status bar
+}
+
 func (t *Table[T]) reload() error {
 	t.data.mu.Lock()
 	defer t.data.mu.Unlock()
 
 	// do not allow to reload more often than once per 30 seconds
 	if time.Since(t.data.lastReload) < 30*time.Second {
-		t.table.UpdateViewport()
 		return nil
 	}
 
@@ -101,22 +147,19 @@ func (t *Table[T]) reload() error {
 			})
 		}))
 	}
-	t.table.UpdateViewport()
 
 	return nil
 }
 
 func (t *Table[T]) redrawColumns() error {
-	data := struct {
+	type columnData struct {
 		LastReload time.Time
 		Total      int
-	}{
-		LastReload: t.data.lastReload,
-		Total:      len(t.data.entries),
 	}
 
 	widthPerUnit := t.table.Width() / lo.Sum(lo.Map(t.cols, func(c Column[T], _ int) int { return c.Width }))
 
+	data := columnData{LastReload: t.data.lastReload, Total: len(t.data.entries)}
 	cols := make([]table.Column, len(t.cols))
 	for idx, col := range t.cols {
 		tmpl, err := template.New("").Parse(col.Title)
@@ -132,36 +175,6 @@ func (t *Table[T]) redrawColumns() error {
 
 	t.table.SetColumns(cols)
 	return nil
-}
-
-// Init does nothing.
-func (t *Table[T]) Init() tea.Cmd { return tea.ClearScreen }
-
-// Update updates the table model.
-func (t *Table[T]) Update(msg tea.Msg) (_ tea.Model, cmd tea.Cmd) {
-	log.Printf("[DEBUG][TUI-Table] received message: %#v", msg)
-
-	if msg, ok := msg.(tea.WindowSizeMsg); ok {
-		t.table.SetWidth(msg.Width)
-		t.table.SetHeight(msg.Height)
-		log.Printf("[DEBUG][TUI-Table] resizing table to new window size: %dx%d", msg.Width, msg.Height)
-		// force rerender
-		return t, t.reloadCmd()
-	}
-
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.String() {
-		case "ctrl+c", "q":
-			return t, tea.Quit
-		case "enter":
-			return t, t.enterCmd()
-		case "r":
-			return t, t.reloadCmd()
-		}
-	}
-
-	t.table, cmd = t.table.Update(msg)
-	return t, cmd
 }
 
 func (t *Table[T]) enterCmd() tea.Cmd {
@@ -188,17 +201,6 @@ func (t *Table[T]) reloadCmd() tea.Cmd {
 			log.Printf("[ERROR][TUI-Table] reload: %v", err)
 			return tea.Quit
 		}
-		return nil
+		return tea.ClearScreen()
 	}
-}
-
-// View renders the table.
-func (t *Table[T]) View() string {
-	t.data.mu.Lock()
-	defer t.data.mu.Unlock()
-	if err := t.redrawColumns(); err != nil {
-		log.Printf("[ERROR][TUI-Table] redraw columns: %v", err)
-		return fmt.Sprintf("failed to render table: %v", err)
-	}
-	return t.table.View()
 }

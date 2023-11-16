@@ -29,7 +29,12 @@ func NewListPR(
 	openOnEnter bool,
 ) (*teax.Table[git.PullRequest], error) {
 	a := &ListPR{ctx: ctx, svc: svc, req: req, openOnEnter: openOnEnter}
-	return teax.NewTable(ListPRColumns, a)
+	tbl, err := teax.NewTable(ListPRColumns, a)
+	if err != nil {
+		return nil, fmt.Errorf("new table: %w", err)
+	}
+	tbl.Focus()
+	return tbl, nil
 }
 
 // Load loads the merge requests.
@@ -69,7 +74,7 @@ func (w loggingWriter) Write(p []byte) (n int, err error) {
 // ListPRColumns are the columns to show in the table.
 var ListPRColumns = []teax.Column[git.PullRequest]{
 	{
-		Column:  table.Column{Title: `MR ({{.LastReload.Format "15:04" }}, total: {{.Total}})`, Width: 2},
+		Column:  table.Column{Title: `last upd: {{.LastReload.Format "15:04" }}, total: {{.Total}}`, Width: 2},
 		Extract: func(pr git.PullRequest) string { return pr.Project.FullPath },
 	},
 	{
