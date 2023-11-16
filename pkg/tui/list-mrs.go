@@ -97,11 +97,11 @@ func (w loggingWriter) Write(p []byte) (n int, err error) {
 // ListPRColumns are the columns to show in the table.
 var ListPRColumns = []teax.Column[git.PullRequest]{
 	{
-		Column:  table.Column{Title: `last upd: {{.LastReload.Format "15:04" }}, Δ: {{.LoadedIn.String}}, total: {{.Total}}`, Width: 2},
+		Column:  table.Column{Title: `Total: {{.Total}}`, Width: 2},
 		Extract: func(pr git.PullRequest) string { return pr.Project.FullPath },
 	},
 	{
-		Column:  table.Column{Title: "Title", Width: 5},
+		Column:  table.Column{Title: "Title (last update: {{.LastReload.Format \"15:04:05\" }}, Δ: {{.LoadedIn.String}})", Width: 5},
 		Extract: func(pr git.PullRequest) string { return pr.Title },
 	},
 	{
