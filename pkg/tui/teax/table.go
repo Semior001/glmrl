@@ -33,6 +33,7 @@ type Table[T any] struct {
 		mu         sync.Mutex
 		entries    []T
 		lastReload time.Time
+		loadedIn   time.Duration
 	}
 	TableParams[T]
 }
@@ -139,11 +140,12 @@ func (t *Table[T]) reload() (updated bool, err error) {
 	defer t.data.mu.Unlock()
 
 	// do not allow to reload more often than once per 30 seconds
-	if time.Since(t.data.lastReload) < 30*time.Second {
-		return false, nil
-	}
+	//if time.Since(t.data.lastReload) < 30*time.Second {
+	//	return false, nil
+	//}
 
 	t.data.lastReload = time.Now()
+	start := time.Now()
 
 	entries, err := t.Actor.Load()
 	if err != nil {
@@ -158,6 +160,8 @@ func (t *Table[T]) reload() (updated bool, err error) {
 			})
 		}))
 	}
+	t.data.loadedIn = time.Since(start)
+	t.data.loadedIn = t.data.loadedIn.Round(100 * time.Millisecond)
 
 	return true, nil
 }
@@ -165,12 +169,13 @@ func (t *Table[T]) reload() (updated bool, err error) {
 func (t *Table[T]) redrawColumns() error {
 	type columnData struct {
 		LastReload time.Time
+		LoadedIn   time.Duration
 		Total      int
 	}
 
 	widthPerUnit := t.table.Width() / lo.Sum(lo.Map(t.Columns, func(c Column[T], _ int) int { return c.Width }))
 
-	data := columnData{LastReload: t.data.lastReload, Total: len(t.data.entries)}
+	data := columnData{LastReload: t.data.lastReload, LoadedIn: t.data.loadedIn, Total: len(t.data.entries)}
 	cols := make([]table.Column, len(t.Columns))
 	for idx, col := range t.Columns {
 		tmpl, err := template.New("").Parse(col.Title)

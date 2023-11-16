@@ -112,24 +112,35 @@ func (g *Gitlab) GetCurrentUser(ctx context.Context) (git.User, error) {
 func (g *Gitlab) loadPR(ctx context.Context, mr *gl.MergeRequest) (pr git.PullRequest, err error) {
 	pr = g.transformMergeRequest(mr)
 
-	if pr.Project, err = g.getProject(ctx, mr.ProjectID); err != nil {
-		return git.PullRequest{}, fmt.Errorf("get project %d: %w", mr.ProjectID, err)
+	ewg, ctx := errgroup.WithContext(ctx)
+	ewg.Go(func() error {
+		if pr.Project, err = g.getProject(ctx, mr.ProjectID); err != nil {
+			return fmt.Errorf("get project %d: %w", mr.ProjectID, err)
+		}
+		return nil
+	})
+	ewg.Go(func() error {
+		approvals, _, err := g.cl.MergeRequests.GetMergeRequestApprovals(mr.ProjectID, mr.IID, nil, gl.WithContext(ctx))
+		if err != nil {
+			return fmt.Errorf("call api to get MR approvals: %w", err)
+		}
+
+		pr.Approvals.By = misc.Map(approvals.ApprovedBy, func(u *gl.MergeRequestApproverUser) git.User { return g.transformUser(u.User) })
+		pr.Approvals.SatisfiesRules = approvals.Approved
+		pr.Approvals.Required = approvals.ApprovalsRequired
+		return nil
+	})
+	ewg.Go(func() error {
+		if pr.History, err = g.assembleHistory(ctx, mr.ProjectID, mr.IID); err != nil {
+			return fmt.Errorf("assemble history: %w", err)
+		}
+		pr.Threads = g.buildThreads(pr.History)
+		return nil
+	})
+
+	if err = ewg.Wait(); err != nil {
+		return git.PullRequest{}, fmt.Errorf("wait for goroutines: %w", err)
 	}
-
-	approvals, _, err := g.cl.MergeRequests.GetMergeRequestApprovals(mr.ProjectID, mr.IID, nil, gl.WithContext(ctx))
-	if err != nil {
-		return git.PullRequest{}, fmt.Errorf("call api to get MR approvals: %w", err)
-	}
-
-	pr.Approvals.By = misc.Map(approvals.ApprovedBy, func(u *gl.MergeRequestApproverUser) git.User { return g.transformUser(u.User) })
-	pr.Approvals.SatisfiesRules = approvals.Approved
-	pr.Approvals.Required = approvals.ApprovalsRequired
-
-	if pr.History, err = g.assembleHistory(ctx, mr.ProjectID, mr.IID); err != nil {
-		return git.PullRequest{}, fmt.Errorf("assemble history: %w", err)
-	}
-
-	pr.Threads = g.buildThreads(pr.History)
 
 	return pr, nil
 }
