@@ -35,6 +35,11 @@ type Pagination struct {
 	Page    int
 }
 
+// Empty returns true if pagination is empty.
+func (p Pagination) Empty() bool {
+	return p.Page == 0 && p.PerPage == 0
+}
+
 // Filter is a filter for a list of items.
 type Filter[T any] struct {
 	Include []T

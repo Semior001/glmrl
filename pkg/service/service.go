@@ -42,10 +42,24 @@ type ListPRsRequest struct {
 // criteria.
 func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]git.PullRequest, error) {
 	log.Printf("[DEBUG] list pull requests with criteria %+v", req)
-	prs, err := s.eng.ListPullRequests(ctx, req.ListPRsRequest)
-	if err != nil {
-		return nil, fmt.Errorf("list pull requests by engine: %w", err)
+
+	listFn := s.eng.ListPullRequests
+
+	if req.Pagination.Empty() {
+		listFn = func(ctx context.Context, req engine.ListPRsRequest) ([]git.PullRequest, error) {
+			req.Pagination.PerPage = 100
+			return misc.ListAll(1, func(page int) ([]git.PullRequest, error) {
+				req.Pagination.Page = page
+				return s.eng.ListPullRequests(ctx, req)
+			})
+		}
 	}
+
+	prs, err := listFn(ctx, req.ListPRsRequest)
+	if err != nil {
+		return nil, fmt.Errorf("list pull requests: %w", err)
+	}
+
 	log.Printf("[DEBUG] listed %d pull requests", len(prs))
 
 	if req.ApprovedByMe != nil {
