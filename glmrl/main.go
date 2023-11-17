@@ -6,9 +6,15 @@ import (
 	"fmt"
 	"github.com/Semior001/glmrl/pkg/cmd"
 	"github.com/Semior001/glmrl/pkg/git/engine"
+	"github.com/Semior001/glmrl/pkg/misc"
 	"github.com/Semior001/glmrl/pkg/service"
 	"github.com/hashicorp/logutils"
 	"github.com/jessevdk/go-flags"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"gopkg.in/yaml.v3"
 	"io"
 	"log"
@@ -24,6 +30,11 @@ type options struct {
 	} `yaml:"gitlab" group:"gitlab" namespace:"gitlab" env-namespace:"GITLAB"`
 	List  cmd.List `yaml:"-" command:"list" description:"list pull requests"`
 	Debug bool     `long:"dbg" env:"DEBUG" description:"turn on debug mode"`
+	Trace struct {
+		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable tracing"`
+		Host    string `long:"host" env:"HOST" description:"jaeger agent host"`
+		Port    string `long:"port" env:"PORT" description:"jaeger agent port"`
+	} `yaml:"-" group:"trace" namespace:"trace" env-namespace:"TRACE"`
 }
 
 var version = "unknown"
@@ -44,6 +55,7 @@ func main() {
 	p := flags.NewParser(&opts, flags.Default)
 	p.CommandHandler = func(c flags.Commander, args []string) error {
 		setupLog(opts.Debug)
+		initTracing(opts.Trace.Enabled, getVersion(), opts.Trace.Host, opts.Trace.Port)
 
 		opts = loadConfig(opts.Config, opts)
 
@@ -62,7 +74,8 @@ func main() {
 	}
 
 	if _, err := p.Parse(); err != nil {
-		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+		var flagsErr *flags.Error
+		if errors.As(err, &flagsErr) && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		}
 		os.Exit(1)
@@ -106,7 +119,9 @@ func initCommon(opts options) (cmd.CommonOpts, error) {
 		return cmd.CommonOpts{}, fmt.Errorf("init gitlab client: %w", err)
 	}
 
-	svc, err := service.NewService(context.Background(), gl)
+	eng := engine.NewInterfaceWithTracing(gl, "Gitlab", misc.AttributesSpanDecorator)
+
+	svc, err := service.NewService(context.Background(), eng)
 	if err != nil {
 		return cmd.CommonOpts{}, fmt.Errorf("init service: %w", err)
 	}
@@ -129,12 +144,46 @@ func setupLog(dbg bool) {
 
 		f, err := os.OpenFile("glmrl.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			log.Fatalf("[ERROR] error opening file: %v", err)
+			log.Fatalf("[ERROR] error opening log file: %v", err)
 		}
+
+		// TODO: close file
 
 		filter.Writer = f
 	}
 
 	log.SetFlags(logFlags)
 	log.SetOutput(filter)
+}
+
+func initTracing(enabled bool, version, host, port string) {
+	if !enabled {
+		return
+	}
+
+	opts := []sdktrace.TracerProviderOption{
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample())),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("glmrl"),
+			semconv.ServiceVersionKey.String(version),
+		)),
+	}
+
+	if enabled {
+		je, err := jaeger.New(jaeger.WithAgentEndpoint(
+			jaeger.WithAgentHost(host),
+			jaeger.WithAgentPort(port),
+			jaeger.WithLogger(log.Default()),
+		))
+		if err != nil {
+			log.Fatalf("[ERROR] failed to init jaeger exporter: %v", err)
+		}
+		// TODO: close exporter
+
+		opts = append(opts, sdktrace.WithBatcher(je))
+	}
+
+	tp := sdktrace.NewTracerProvider(opts...)
+	otel.SetTracerProvider(tp)
 }

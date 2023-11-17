@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Semior001/glmrl/pkg/git"
 	"github.com/Semior001/glmrl/pkg/service"
@@ -12,6 +13,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"log"
 	"strconv"
 	"time"
@@ -24,9 +28,14 @@ type ListPR struct {
 	tea.Model
 }
 
+// PRStore is a store of pull requests.
+type PRStore interface {
+	ListPullRequests(ctx context.Context, req service.ListPRsRequest) ([]git.PullRequest, error)
+}
+
 // ListPRParams are the parameters to initialize a ListPR TUI.
 type ListPRParams struct {
-	Service      *service.Service
+	Service      PRStore
 	Request      service.ListPRsRequest
 	OpenOnEnter  bool
 	PollInterval time.Duration
@@ -52,7 +61,18 @@ func NewListPR(ctx context.Context, params ListPRParams) (tea.Model, error) {
 
 // Load loads the merge requests.
 func (l *ListPR) Load() ([]git.PullRequest, error) {
-	prs, err := l.Service.ListPullRequests(l.ctx, l.Request)
+	ctx := l.ctx
+
+	b, err := json.Marshal(l.Request)
+	if err != nil {
+		b = []byte(fmt.Sprintf("failed to marshal request: %w", err))
+	}
+
+	ctx, span := otel.GetTracerProvider().Tracer("tui").
+		Start(ctx, "ListPR.Load", trace.WithAttributes(attribute.String("request", string(b))))
+	defer span.End()
+
+	prs, err := l.Service.ListPullRequests(ctx, l.Request)
 	if err != nil {
 		return nil, fmt.Errorf("list merge requests: %w", err)
 	}

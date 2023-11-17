@@ -113,3 +113,10 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 
 	return prs, nil
 }
+
+//go:generate gowrap gen -g -p . -i tracingService -t opentelemetry -o service_trace_gen.go
+
+// tracingService defines a list of Service methods to generate a tracing wrapper.
+type tracingService interface {
+	ListPullRequests(ctx context.Context, req ListPRsRequest) ([]git.PullRequest, error)
+}

@@ -56,7 +56,7 @@ func (c List) Execute([]string) error {
 	}
 
 	tbl, err := tui.NewListPR(ctx, tui.ListPRParams{
-		Service:      c.Service,
+		Service:      service.NewtracingServiceWithTracing(c.Service, "Service", misc.AttributesSpanDecorator),
 		Request:      req,
 		OpenOnEnter:  c.Action == "open",
 		PollInterval: c.PollInterval,

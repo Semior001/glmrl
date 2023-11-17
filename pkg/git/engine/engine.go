@@ -17,6 +17,8 @@ type ListPRsRequest struct {
 	Pagination misc.Pagination
 }
 
+//go:generate gowrap gen -g -p . -i Interface -t opentelemetry -o engine_trace_gen.go
+
 // Interface defines methods each git engine client should implement.
 type Interface interface {
 	// ListPullRequests lists pull requests.
