@@ -4,11 +4,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Semior001/glmrl/pkg/git"
 	"github.com/Semior001/glmrl/pkg/git/engine"
 	"github.com/Semior001/glmrl/pkg/misc"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"log"
 )
 
@@ -44,8 +47,82 @@ type ListPRsRequest struct {
 func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]git.PullRequest, error) {
 	log.Printf("[DEBUG] list pull requests with criteria %+v", req)
 
-	listFn := s.eng.ListPullRequests
+	prs, err := s.listPRs(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("list pull requests: %w", err)
+	}
 
+	log.Printf("[DEBUG] listed %d pull requests", len(prs))
+
+	filter := func(name string, fn func(git.PullRequest) bool) {
+		_, span := otel.GetTracerProvider().Tracer("service").
+			Start(ctx, fmt.Sprintf("filter PRs by %s", name))
+		defer span.End()
+		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool { return fn(pr) })
+
+		b, err := json.Marshal(prs)
+		if err != nil {
+			b = []byte(fmt.Sprintf("failed to marshal: %v", err))
+		}
+
+		span.SetAttributes(attribute.String("result", string(b)))
+	}
+
+	if req.ApprovedByMe != nil {
+		filter("approved by me", func(pr git.PullRequest) bool {
+			return lo.ContainsBy(pr.Approvals.By, func(u git.User) bool {
+				return u.Username == s.me.Username
+			}) == *req.ApprovedByMe
+		})
+	}
+
+	if req.WithoutMyUnresolvedThreads {
+		filter("without my unresolved threads", func(pr git.PullRequest) bool {
+			return !lo.ContainsBy(pr.Threads, func(c git.Comment) bool {
+				return c.Author.Username == s.me.Username && !c.Resolved
+			})
+		})
+	}
+
+	if req.SatisfiesApprovalRules != nil {
+		filter("satisfies approval rules", func(pr git.PullRequest) bool {
+			return pr.Approvals.SatisfiesRules == *req.SatisfiesApprovalRules
+		})
+	}
+
+	if len(req.Authors.Include) > 0 {
+		filter("authors include", func(pr git.PullRequest) bool {
+			return lo.Contains(req.Authors.Include, pr.Author.Username)
+		})
+	}
+
+	if len(req.Authors.Exclude) > 0 {
+		filter("authors exclude", func(pr git.PullRequest) bool {
+			return !lo.Contains(req.Authors.Exclude, pr.Author.Username)
+		})
+	}
+
+	if len(req.ProjectPaths.Include) > 0 {
+		filter("project paths include", func(pr git.PullRequest) bool {
+			return lo.Contains(req.ProjectPaths.Include, pr.Project.FullPath)
+		})
+	}
+
+	if len(req.ProjectPaths.Exclude) > 0 {
+		filter("project paths exclude", func(pr git.PullRequest) bool {
+			return !lo.Contains(req.ProjectPaths.Exclude, pr.Project.FullPath)
+		})
+	}
+
+	return prs, nil
+}
+
+func (s *Service) listPRs(ctx context.Context, req ListPRsRequest) ([]git.PullRequest, error) {
+	ctx, span := otel.GetTracerProvider().Tracer("service").
+		Start(ctx, fmt.Sprintf("list PRs from engine"))
+	defer span.End()
+
+	listFn := s.eng.ListPullRequests
 	if req.Pagination.Empty() {
 		listFn = func(ctx context.Context, req engine.ListPRsRequest) ([]git.PullRequest, error) {
 			req.Pagination.PerPage = 100
@@ -57,61 +134,19 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 	}
 
 	prs, err := listFn(ctx, req.ListPRsRequest)
+
+	b, marshalErr := json.Marshal(prs)
+	if marshalErr != nil {
+		b = []byte(fmt.Sprintf("failed to marshal: %v", marshalErr))
+	}
+
+	attrs := []attribute.KeyValue{attribute.String("result", string(b))}
 	if err != nil {
-		return nil, fmt.Errorf("list pull requests: %w", err)
+		attrs = append(attrs, attribute.String("err", err.Error()))
 	}
 
-	log.Printf("[DEBUG] listed %d pull requests", len(prs))
-
-	if req.ApprovedByMe != nil {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return lo.ContainsBy(pr.Approvals.By, func(u git.User) bool {
-				return u.Username == s.me.Username
-			}) == *req.ApprovedByMe
-		})
-	}
-
-	if req.WithoutMyUnresolvedThreads {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return !lo.ContainsBy(pr.Threads, func(c git.Comment) bool {
-				myUnresolved := c.Author.Username == s.me.Username && !c.Resolved
-				requiresMyAction := c.Last().Author.Username != s.me.Username
-				return myUnresolved && !requiresMyAction
-			})
-		})
-	}
-
-	if req.SatisfiesApprovalRules != nil {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return pr.Approvals.SatisfiesRules == *req.SatisfiesApprovalRules
-		})
-	}
-
-	if len(req.Authors.Include) > 0 {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return lo.Contains(req.Authors.Include, pr.Author.Username)
-		})
-	}
-
-	if len(req.Authors.Exclude) > 0 {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return !lo.Contains(req.Authors.Exclude, pr.Author.Username)
-		})
-	}
-
-	if len(req.ProjectPaths.Include) > 0 {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return lo.Contains(req.ProjectPaths.Include, pr.Project.FullPath)
-		})
-	}
-
-	if len(req.ProjectPaths.Exclude) > 0 {
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
-			return !lo.Contains(req.ProjectPaths.Exclude, pr.Project.FullPath)
-		})
-	}
-
-	return prs, nil
+	span.SetAttributes(attrs...)
+	return prs, err
 }
 
 //go:generate gowrap gen -g -p . -i tracingService -t opentelemetry -o service_trace_gen.go

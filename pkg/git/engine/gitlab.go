@@ -7,9 +7,12 @@ import (
 	"github.com/Semior001/glmrl/pkg/misc"
 	cache "github.com/go-pkgz/expirable-cache/v2"
 	"github.com/go-pkgz/requester"
+	"github.com/go-pkgz/requester/middleware"
 	"github.com/go-pkgz/requester/middleware/logger"
 	"github.com/samber/lo"
 	gl "github.com/xanzy/go-gitlab"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"net/http"
@@ -28,7 +31,21 @@ type Gitlab struct {
 // NewGitlab returns a new Gitlab service.
 func NewGitlab(token, baseURL string) (*Gitlab, error) {
 	rq := requester.New(
-		http.Client{Timeout: time.Minute},
+		http.Client{
+			Transport: otelhttp.NewTransport(
+				middleware.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					req.Body = dumpBody(req.Context(), "request.body", req.Body)
+					resp, err := http.DefaultTransport.RoundTrip(req)
+					if err != nil {
+						return nil, err
+					}
+					resp.Body = dumpBody(req.Context(), "response.body", resp.Body)
+					return resp, nil
+				}),
+				otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
+			),
+			Timeout: time.Minute,
+		},
 		logger.New(logger.Func(log.Printf), logger.Prefix("[DEBUG]"), logger.WithBody).Middleware,
 	)
 
@@ -83,6 +100,10 @@ func (g *Gitlab) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]gi
 	for idx, mr := range mrs {
 		idx, mr := idx, mr
 		ewg.Go(func() error {
+			ctx, span := otel.GetTracerProvider().Tracer("gitlab").
+				Start(ctx, fmt.Sprintf("Gitlab.loadPR(%d/%d)", mr.ProjectID, mr.IID))
+			defer span.End()
+
 			pr, err := g.loadPR(ctx, mr)
 			if err != nil {
 				return fmt.Errorf("load PR %s: %w", mr.WebURL, err)

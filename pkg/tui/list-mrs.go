@@ -65,7 +65,7 @@ func (l *ListPR) Load() ([]git.PullRequest, error) {
 
 	b, err := json.Marshal(l.Request)
 	if err != nil {
-		b = []byte(fmt.Sprintf("failed to marshal request: %w", err))
+		b = []byte(fmt.Sprintf("failed to marshal: %v", err))
 	}
 
 	ctx, span := otel.GetTracerProvider().Tracer("tui").
