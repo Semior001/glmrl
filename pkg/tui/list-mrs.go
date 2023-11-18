@@ -103,9 +103,24 @@ func (l *ListPR) Update(msg tea.Msg) (_ tea.Model, cmd tea.Cmd) {
 	return l, cmd
 }
 
+func (l *ListPR) controlView() string {
+	action := "open"
+	if !l.OpenOnEnter {
+		action = "copy URL"
+	}
+
+	return lipgloss.NewStyle().
+		MarginLeft(1).
+		Bold(true).
+		Foreground(lipgloss.NoColor{}).
+		Render(fmt.Sprintf("↑/↓: scroll, enter: %s, r: reload, q/ctrl+c: quit", action))
+}
+
 // View adds the version to the table view.
 func (l *ListPR) View() string {
-	return lipgloss.JoinVertical(lipgloss.Top, Version(l.Version), l.Model.View())
+	return lipgloss.JoinVertical(lipgloss.Top,
+		lipgloss.JoinHorizontal(lipgloss.Left, Version(l.Version), l.controlView()),
+		l.Model.View())
 }
 
 type loggingWriter string
