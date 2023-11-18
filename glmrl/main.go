@@ -118,19 +118,21 @@ func initCommon(opts options) (cmd.CommonOpts, error) {
 		return cmd.CommonOpts{}, errors.New("gitlab creds not provided")
 	}
 
-	gl, err := engine.NewGitlab(opts.Gitlab.Token, opts.Gitlab.BaseURL)
-	if err != nil {
-		return cmd.CommonOpts{}, fmt.Errorf("init gitlab client: %w", err)
+	c := cmd.CommonOpts{
+		Version: getVersion(),
+		PrepareService: func(ctx context.Context) (*service.Service, error) {
+			gl, err := engine.NewGitlab(opts.Gitlab.Token, opts.Gitlab.BaseURL)
+			if err != nil {
+				return nil, fmt.Errorf("init gitlab client: %w", err)
+			}
+
+			eng := engine.NewInterfaceWithTracing(gl, "Gitlab", misc.AttributesSpanDecorator)
+
+			return service.NewService(ctx, eng)
+		},
 	}
 
-	eng := engine.NewInterfaceWithTracing(gl, "Gitlab", misc.AttributesSpanDecorator)
-
-	svc, err := service.NewService(context.Background(), eng)
-	if err != nil {
-		return cmd.CommonOpts{}, fmt.Errorf("init service: %w", err)
-	}
-
-	return cmd.CommonOpts{Version: getVersion(), Service: svc}, nil
+	return c, nil
 }
 
 func setupLog(dbg bool) {

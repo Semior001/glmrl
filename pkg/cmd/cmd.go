@@ -1,18 +1,19 @@
 package cmd
 
 import (
+	"context"
 	"github.com/Semior001/glmrl/pkg/service"
 	"github.com/samber/lo"
 )
 
 // CommonOpts contains common options for all commands.
 type CommonOpts struct {
-	Service *service.Service
-	Version string
+	PrepareService func(ctx context.Context) (*service.Service, error)
+	Version        string
 }
 
 func (c *CommonOpts) Set(opts CommonOpts) {
-	c.Service = opts.Service
+	c.PrepareService = opts.PrepareService
 	c.Version = opts.Version
 }
 

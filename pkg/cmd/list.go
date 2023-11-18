@@ -83,8 +83,13 @@ func (c List) Execute([]string) error {
 		return fmt.Errorf("validate backend filters: %w", err)
 	}
 
+	svc, err := c.PrepareService(ctx)
+	if err != nil {
+		return fmt.Errorf("init service: %w", err)
+	}
+
 	tbl, err := tui.NewListPR(ctx, tui.ListPRParams{
-		Service:      service.NewtracingServiceWithTracing(c.Service, "Service", misc.AttributesSpanDecorator),
+		Service:      service.NewtracingServiceWithTracing(svc, "PrepareService", misc.AttributesSpanDecorator),
 		Request:      req,
 		OpenOnEnter:  c.Action == "open",
 		PollInterval: c.PollInterval,
