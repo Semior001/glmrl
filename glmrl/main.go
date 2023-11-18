@@ -8,7 +8,6 @@ import (
 	"github.com/Semior001/glmrl/pkg/git/engine"
 	"github.com/Semior001/glmrl/pkg/misc"
 	"github.com/Semior001/glmrl/pkg/service"
-	"github.com/go-logr/logr"
 	"github.com/hashicorp/logutils"
 	"github.com/jessevdk/go-flags"
 	"go.opentelemetry.io/otel"
