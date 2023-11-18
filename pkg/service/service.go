@@ -97,7 +97,16 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 
 	if req.SatisfiesApprovalRules != nil {
 		filter("satisfies approval rules", func(pr git.PullRequest) bool {
-			return pr.Approvals.SatisfiesRules == *req.SatisfiesApprovalRules
+			// we should not filter PR that satisfies approval rules, but the current user
+			// was explicitly requested to review this MR, and yet he didn't approve it
+			approvalRequiredFromMe := lo.ContainsBy(pr.Approvals.RequestedFrom, func(u git.User) bool {
+				return u.Username == s.me.Username
+			})
+			approvedByMe := lo.ContainsBy(pr.Approvals.By, func(u git.User) bool {
+				return u.Username == s.me.Username
+			})
+			return (approvalRequiredFromMe && !approvedByMe) ||
+				pr.Approvals.SatisfiesRules == *req.SatisfiesApprovalRules
 		})
 	}
 

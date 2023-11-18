@@ -292,6 +292,8 @@ func (g *Gitlab) transformMergeRequest(mr *gl.MergeRequest) git.PullRequest {
 		CreatedAt:    lo.FromPtr(mr.CreatedAt),
 	}
 
+	pr.Approvals.RequestedFrom = misc.Map(mr.Reviewers, g.transformUser)
+
 	switch {
 	case mr.Draft || mr.WorkInProgress:
 		pr.State = git.StateDraft

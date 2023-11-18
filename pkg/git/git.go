@@ -29,6 +29,7 @@ type PullRequest struct {
 	TargetBranch string   `json:"target_branch"`
 	Assignees    []User   `json:"assignees"`
 	Approvals    struct {
+		RequestedFrom  []User `json:"requested_from"`
 		By             []User `json:"by"`
 		SatisfiesRules bool   `json:"satisfies_rules"`
 		Required       int    `json:"required"`
