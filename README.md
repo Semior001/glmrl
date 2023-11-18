@@ -56,6 +56,17 @@ Help Options:
 
 If pagination is not specified, it will show all pull requests that match the filters.
 
+### config
+You can save the config file with git engine credentials and use it instead of passing them as command line arguments.
+The location of the config file is `~/.glmrl/config.yaml` by default, or you can specify it with `--config` flag.
+
+example:
+```yaml
+gitlab:
+  token: <gitlab-token>
+  base_url: https://gitlab.com
+```
+
 ## example
 ```
 I can review only the MRs that:
