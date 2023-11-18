@@ -141,11 +141,6 @@ func (t *RefreshingDataTable[T]) reload() (updated bool, err error) {
 	t.data.mu.Lock()
 	defer t.data.mu.Unlock()
 
-	// do not allow to reload more often than once per 30 seconds
-	//if time.Since(t.data.lastReload) < 30*time.Second {
-	//	return false, nil
-	//}
-
 	t.data.lastReload = time.Now()
 	start := time.Now()
 
