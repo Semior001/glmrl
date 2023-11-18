@@ -238,6 +238,7 @@ func (g *Gitlab) transformNote(rootThreads map[string]struct{}, note *gl.Note) (
 
 	if note.Resolved {
 		resEv := git.Event{
+			ID:         fmt.Sprintf("%s!resolved", ev.ID),
 			Actor:      g.transformUser(&gl.BasicUser{Username: note.ResolvedBy.Username}),
 			Timestamp:  lo.FromPtr(note.ResolvedAt),
 			Type:       git.EventTypeThreadResolved,
