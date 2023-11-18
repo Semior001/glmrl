@@ -57,7 +57,8 @@ Help Options:
 If pagination is not specified, it will show all pull requests that match the filters.
 
 ## example
-"I can review only the MRs that":
+```
+I can review only the MRs that:
 - are open,
 - have a label "to-review",
 - are not approved by me,
@@ -66,7 +67,10 @@ If pagination is not specified, it will show all pull requests that match the fi
 - doesn't have my unresolved threads
   - but I still want to see MRs with my unresolved threads where my action is not the last (i.e. somebody replied in my thread and didn't resolve it).
 
+When I press enter, I want to open the MR in my default browser.
+```
+
 command example:
 ```bash
-glmrl list --state=open --labels.include='to-review' --approved-by-me=false --not-enough-approvals=true --without-my-unresolved-threads
+glmrl list --action=open --state=open --labels.include='to-review' --approved-by-me=false --not-enough-approvals=true --without-my-unresolved-threads
 ```
