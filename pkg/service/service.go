@@ -58,7 +58,15 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 		_, span := otel.GetTracerProvider().Tracer("service").
 			Start(ctx, fmt.Sprintf("filter PRs by %s", name))
 		defer span.End()
-		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool { return fn(pr) })
+
+		var filteredURLs []string
+		prs = lo.Filter(prs, func(pr git.PullRequest, _ int) bool {
+			if !fn(pr) {
+				filteredURLs = append(filteredURLs, pr.URL)
+				return false
+			}
+			return true
+		})
 
 		b, err := json.Marshal(prs)
 		if err != nil {
@@ -66,6 +74,7 @@ func (s *Service) ListPullRequests(ctx context.Context, req ListPRsRequest) ([]g
 		}
 
 		span.SetAttributes(attribute.String("result", string(b)))
+		span.SetAttributes(attribute.StringSlice("filtered_urls", filteredURLs))
 	}
 
 	if req.ApprovedByMe != nil {
