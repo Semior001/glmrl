@@ -68,7 +68,7 @@ func main() {
 		c.(interface{ Set(cmd.CommonOpts) }).Set(copts)
 
 		if err = c.Execute(args); err != nil {
-			log.Printf("[ERROR] failed to execute command: %+v", err)
+			return fmt.Errorf("failed to execute command: %w", err)
 		}
 
 		return nil

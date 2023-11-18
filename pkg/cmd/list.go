@@ -9,6 +9,7 @@ import (
 	"github.com/Semior001/glmrl/pkg/service"
 	"github.com/Semior001/glmrl/pkg/tui"
 	"github.com/Semior001/glmrl/pkg/tui/teax"
+	"github.com/samber/lo"
 	"time"
 )
 
@@ -34,6 +35,29 @@ type List struct {
 	PollInterval time.Duration `long:"poll-interval" default:"5m" description:"interval to poll for new merge requests"`
 }
 
+func (c List) validateBackendFilters() error {
+	type filter struct {
+		name    string
+		present bool
+	}
+
+	filters := []filter{
+		{name: "state", present: c.State != ""},
+		{name: "labels", present: !c.Labels.Empty()},
+		{name: "authors", present: !c.Authors.Empty()},
+		{name: "pagination", present: c.Pagination.Page != 0 && c.Pagination.PerPage != 0},
+	}
+
+	for _, f := range filters {
+		if f.present {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("at least one backend-side filter must be present, available filters: %v",
+		lo.Map(filters, func(f filter, _ int) string { return f.name }))
+}
+
 // Execute runs the command.
 func (c List) Execute([]string) error {
 	ctx := context.Background()
@@ -53,6 +77,10 @@ func (c List) Execute([]string) error {
 		SatisfiesApprovalRules:     Not(c.NotEnoughApprovals).Value(),
 		Authors:                    misc.Filter[string]{Include: c.Authors.Include, Exclude: c.Authors.Exclude},
 		ProjectPaths:               misc.Filter[string]{Include: c.ProjectPaths.Include, Exclude: c.ProjectPaths.Exclude},
+	}
+
+	if err := c.validateBackendFilters(); err != nil {
+		return fmt.Errorf("validate backend filters: %w", err)
 	}
 
 	tbl, err := tui.NewListPR(ctx, tui.ListPRParams{

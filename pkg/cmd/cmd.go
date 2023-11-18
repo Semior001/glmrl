@@ -22,6 +22,11 @@ type FilterGroup struct {
 	Exclude []string `long:"exclude" description:"list only entries that exclude the given value"`
 }
 
+// Empty returns true if the filter group is empty.
+func (g FilterGroup) Empty() bool {
+	return len(g.Include) == 0 && len(g.Exclude) == 0
+}
+
 // NillableBool is a bool that can be nil
 type NillableBool string
 
