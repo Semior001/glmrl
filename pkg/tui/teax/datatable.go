@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-// Column is a column to show in the table.
+// Column is a column to show in the table. It also contains
+// a function to extract the value from the data source.
 type Column[T any] struct {
 	table.Column
 	Extract func(T) string
@@ -26,8 +27,9 @@ type Actor[T any] interface {
 	OnEnter(T) error
 }
 
-// Table is a table model.
-type Table[T any] struct {
+// RefreshingDataTable is a table, that loads its data from an
+// Actor with periodic updates, or on demand.
+type RefreshingDataTable[T any] struct {
 	table table.Model
 	data  struct {
 		mu         sync.Mutex
@@ -35,20 +37,20 @@ type Table[T any] struct {
 		lastReload time.Time
 		loadedIn   time.Duration
 	}
-	TableParams[T]
+	RefreshingDataTableParams[T]
 }
 
-// TableParams are the parameters to initialize a Table.
-type TableParams[T any] struct {
+// RefreshingDataTableParams are the parameters to initialize a RefreshingDataTable.
+type RefreshingDataTableParams[T any] struct {
 	Columns        []Column[T]
 	Actor          Actor[T]
 	PollInterval   time.Duration
 	BorrowedHeight int // table will cut off these lines from the top at render
 }
 
-// NewTable creates a new Table.
-func NewTable[T any](params TableParams[T]) (*Table[T], error) {
-	tbl := &Table[T]{TableParams: params}
+// NewRefreshingDataTable creates a new RefreshingDataTable.
+func NewRefreshingDataTable[T any](params RefreshingDataTableParams[T]) (*RefreshingDataTable[T], error) {
+	tbl := &RefreshingDataTable[T]{RefreshingDataTableParams: params}
 	tbl.table = table.New()
 	s := table.DefaultStyles()
 	s.Header = s.Header.
@@ -83,14 +85,14 @@ func NewTable[T any](params TableParams[T]) (*Table[T], error) {
 }
 
 // Focus focuses the table.
-func (t *Table[T]) Focus() { t.table.Focus() }
+func (t *RefreshingDataTable[T]) Focus() { t.table.Focus() }
 
 // Init does nothing.
-func (t *Table[T]) Init() tea.Cmd { return t.scheduleTick() }
+func (t *RefreshingDataTable[T]) Init() tea.Cmd { return t.scheduleTick() }
 
 // Update updates the table model.
-func (t *Table[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	log.Printf("[DEBUG][TUI-Table] received message: %#v", msg)
+func (t *RefreshingDataTable[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Printf("[DEBUG][TUI-RefreshingDataTable] received message: %#v", msg)
 
 	if _, ok := msg.(tickMsg); ok {
 		return t, tea.Batch(t.reloadCmd(), t.scheduleTick())
@@ -99,7 +101,7 @@ func (t *Table[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		t.resize(msg.Width, msg.Height)
 
-		log.Printf("[DEBUG][TUI-Table] resizing table to new window size: %dx%d", msg.Width, msg.Height)
+		log.Printf("[DEBUG][TUI-RefreshingDataTable] resizing table to new window size: %dx%d", msg.Width, msg.Height)
 		return t, tea.ClearScreen
 	}
 
@@ -120,22 +122,22 @@ func (t *Table[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the table.
-func (t *Table[T]) View() string {
+func (t *RefreshingDataTable[T]) View() string {
 	t.data.mu.Lock()
 	defer t.data.mu.Unlock()
 	if err := t.redrawColumns(); err != nil {
-		log.Printf("[ERROR][TUI-Table] redraw columns: %v", err)
+		log.Printf("[ERROR][TUI-RefreshingDataTable] redraw columns: %v", err)
 		return fmt.Sprintf("failed to render table: %v", err)
 	}
 	return t.table.View()
 }
 
-func (t *Table[T]) resize(w, h int) {
+func (t *RefreshingDataTable[T]) resize(w, h int) {
 	t.table.SetWidth(w)
 	t.table.SetHeight(h - 2 - t.BorrowedHeight) // cut off the status bar and the borrowed height
 }
 
-func (t *Table[T]) reload() (updated bool, err error) {
+func (t *RefreshingDataTable[T]) reload() (updated bool, err error) {
 	t.data.mu.Lock()
 	defer t.data.mu.Unlock()
 
@@ -166,7 +168,7 @@ func (t *Table[T]) reload() (updated bool, err error) {
 	return true, nil
 }
 
-func (t *Table[T]) redrawColumns() error {
+func (t *RefreshingDataTable[T]) redrawColumns() error {
 	type columnData struct {
 		LastReload time.Time
 		LoadedIn   time.Duration
@@ -193,7 +195,7 @@ func (t *Table[T]) redrawColumns() error {
 	return nil
 }
 
-func (t *Table[T]) enterCmd() tea.Cmd {
+func (t *RefreshingDataTable[T]) enterCmd() tea.Cmd {
 	return func() tea.Msg {
 		t.data.mu.Lock()
 		defer t.data.mu.Unlock()
@@ -203,7 +205,7 @@ func (t *Table[T]) enterCmd() tea.Cmd {
 		}
 
 		if err := t.Actor.OnEnter(t.data.entries[t.table.Cursor()]); err != nil {
-			log.Printf("[ERROR][TUI-Table] OnEnter callback returned error: %v", err)
+			log.Printf("[ERROR][TUI-RefreshingDataTable] OnEnter callback returned error: %v", err)
 			return tea.Quit
 		}
 
@@ -211,11 +213,11 @@ func (t *Table[T]) enterCmd() tea.Cmd {
 	}
 }
 
-func (t *Table[T]) reloadCmd() tea.Cmd {
+func (t *RefreshingDataTable[T]) reloadCmd() tea.Cmd {
 	return func() tea.Msg {
 		upd, err := t.reload()
 		if err != nil {
-			log.Printf("[ERROR][TUI-Table] reload: %v", err)
+			log.Printf("[ERROR][TUI-RefreshingDataTable] reload: %v", err)
 			return tea.Quit
 		}
 		if upd {
@@ -225,6 +227,6 @@ func (t *Table[T]) reloadCmd() tea.Cmd {
 	}
 }
 
-func (t *Table[T]) scheduleTick() tea.Cmd {
+func (t *RefreshingDataTable[T]) scheduleTick() tea.Cmd {
 	return tea.Tick(t.PollInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }

@@ -45,7 +45,7 @@ type ListPRParams struct {
 // NewListPR returns a new ListPR TUI.
 func NewListPR(ctx context.Context, params ListPRParams) (tea.Model, error) {
 	a := &ListPR{ctx: ctx, ListPRParams: params}
-	tbl, err := teax.NewTable(teax.TableParams[git.PullRequest]{
+	tbl, err := teax.NewRefreshingDataTable(teax.RefreshingDataTableParams[git.PullRequest]{
 		Columns:        ListPRColumns,
 		Actor:          a,
 		PollInterval:   params.PollInterval,
