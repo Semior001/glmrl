@@ -30,8 +30,8 @@ Help Options:
           --approved-by-me=[true|false|]    list only merge requests approved by me
           --without-my-unresolved-threads   list only merge requests without MY unresolved threads, but lists threads where my action is required
           --not-enough-approvals=           list only merge requests with not enough approvals, but show the ones where I've been requested as a reviewer and didn't approve it
-          --action=[open|copy]              action to perform on pressing enter (default: copy)
-          --poll-interval=                  interval to poll for new merge requests (default: 5m)
+          --action=[open|copy]              action to perform on pressing enter (default: open)
+          --poll-interval=                  interval to poll for new merge requests, 0 means no polling, only manual refresh (default: 5m)
 
     labels:
           --labels.include=                 list only entries that include the given value

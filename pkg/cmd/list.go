@@ -32,7 +32,7 @@ type List struct {
 		PerPage int `long:"per-page" description:"number of items per page"`
 	} `group:"pagination" namespace:"pagination" env-namespace:"PAGINATION" description:"pagination options, provide none to list all"`
 	Action       string        `long:"action" choice:"open" choice:"copy" default:"open" description:"action to perform on pressing enter"`
-	PollInterval time.Duration `long:"poll-interval" default:"5m" description:"interval to poll for new merge requests"`
+	PollInterval time.Duration `long:"poll-interval" default:"5m" description:"interval to poll for new merge requests, 0 means no polling, only manual refresh"`
 }
 
 func (c List) validateBackendFilters() error {

@@ -223,5 +223,8 @@ func (t *RefreshingDataTable[T]) reloadCmd() tea.Cmd {
 }
 
 func (t *RefreshingDataTable[T]) scheduleTick() tea.Cmd {
+	if t.PollInterval == 0 {
+		return nil
+	}
 	return tea.Tick(t.PollInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
