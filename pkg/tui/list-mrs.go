@@ -86,20 +86,22 @@ func (l *ListPR) OnKey(key string, _ int, pr git.PullRequest) (reload bool, err 
 	switch key {
 	case "enter":
 		if l.OpenOnEnter {
-			if err := browser.OpenURL(pr.URL); err != nil {
+			if err = browser.OpenURL(pr.URL); err != nil {
 				return false, fmt.Errorf("open URL %q: %w", pr.URL, err)
 			}
 			return false, nil
 		}
-		if err := clipboard.WriteAll(pr.URL); err != nil {
+		if err = clipboard.WriteAll(pr.URL); err != nil {
 			return false, fmt.Errorf("copy URL to clipboard: %w", err)
 		}
 		return false, nil
 	case "a":
-		if err := l.Service.Approve(l.ctx, pr.Project.ID, pr.Number); err != nil {
-			return true, fmt.Errorf("approve PR: %w", err)
+		if err = l.Service.Approve(l.ctx, pr.Project.ID, pr.Number); err != nil {
+			return false, fmt.Errorf("approve PR: %w", err)
 		}
-		return true, nil
+
+		// we hide only if filter "do not show PRs that are approved by me" is on
+		return l.Request.ApprovedByMe == lo.ToPtr(false), nil
 	default:
 		return false, nil
 	}
