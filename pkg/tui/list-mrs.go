@@ -31,6 +31,7 @@ type ListPR struct {
 // PRStore is a store of pull requests.
 type PRStore interface {
 	ListPullRequests(ctx context.Context, req service.ListPRsRequest) ([]git.PullRequest, error)
+	Approve(ctx context.Context, projectID string, prNumber int) error
 }
 
 // ListPRParams are the parameters to initialize a ListPR TUI.
@@ -80,21 +81,28 @@ func (l *ListPR) Load() ([]git.PullRequest, error) {
 	return prs, nil
 }
 
-// OnEnter either opens the merge request in the browser or copies the URL to
-// the clipboard.
-func (l *ListPR) OnEnter(pr git.PullRequest) error {
-	if l.OpenOnEnter {
-		if err := browser.OpenURL(pr.URL); err != nil {
-			return fmt.Errorf("open URL %q: %w", pr.URL, err)
+// OnKey reacts on user's key presses.
+func (l *ListPR) OnKey(key string, _ int, pr git.PullRequest) (reload bool, err error) {
+	switch key {
+	case "enter":
+		if l.OpenOnEnter {
+			if err := browser.OpenURL(pr.URL); err != nil {
+				return false, fmt.Errorf("open URL %q: %w", pr.URL, err)
+			}
+			return false, nil
 		}
-		return nil
+		if err := clipboard.WriteAll(pr.URL); err != nil {
+			return false, fmt.Errorf("copy URL to clipboard: %w", err)
+		}
+		return false, nil
+	case "a":
+		if err := l.Service.Approve(l.ctx, pr.Project.ID, pr.Number); err != nil {
+			return true, fmt.Errorf("approve PR: %w", err)
+		}
+		return true, nil
+	default:
+		return false, nil
 	}
-
-	if err := clipboard.WriteAll(pr.URL); err != nil {
-		return fmt.Errorf("copy URL to clipboard: %w", err)
-	}
-
-	return nil
 }
 
 // Update updates the model.
@@ -113,7 +121,7 @@ func (l *ListPR) controlView() string {
 		MarginLeft(1).
 		Bold(true).
 		Foreground(lipgloss.NoColor{}).
-		Render(fmt.Sprintf("↑/↓: scroll, enter: %s, r: reload, q/ctrl+c: quit", action))
+		Render(fmt.Sprintf("↑/↓: scroll, enter: %s, r: reload, a: instant approve, q/ctrl+c: quit", action))
 }
 
 // View adds the version to the table view.

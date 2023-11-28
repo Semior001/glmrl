@@ -121,7 +121,7 @@ func initCommon(opts options) (cmd.CommonOpts, error) {
 	c := cmd.CommonOpts{
 		Version: getVersion(),
 		PrepareService: func(ctx context.Context) (*service.Service, error) {
-			gl, err := engine.NewGitlab(opts.Gitlab.Token, opts.Gitlab.BaseURL)
+			gl, err := engine.NewGitlab(opts.Gitlab.Token, opts.Gitlab.BaseURL, getVersion())
 			if err != nil {
 				return nil, fmt.Errorf("init gitlab client: %w", err)
 			}

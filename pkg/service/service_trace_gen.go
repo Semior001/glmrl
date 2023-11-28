@@ -34,6 +34,29 @@ func NewtracingServiceWithTracing(base tracingService, instance string, spanDeco
 	return d
 }
 
+// Approve implements tracingService
+func (_d tracingServiceWithTracing) Approve(ctx context.Context, pID string, prNum int) (err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "tracingService.Approve")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx":   ctx,
+				"pID":   pID,
+				"prNum": prNum}, map[string]interface{}{
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.tracingService.Approve(ctx, pID, prNum)
+}
+
 // ListPullRequests implements tracingService
 func (_d tracingServiceWithTracing) ListPullRequests(ctx context.Context, req ListPRsRequest) (pa1 []git.PullRequest, err error) {
 	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "tracingService.ListPullRequests")

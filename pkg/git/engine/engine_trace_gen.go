@@ -34,6 +34,29 @@ func NewInterfaceWithTracing(base Interface, instance string, spanDecorator ...f
 	return d
 }
 
+// Approve implements Interface
+func (_d InterfaceWithTracing) Approve(ctx context.Context, projectID string, number int) (err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "Interface.Approve")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx":       ctx,
+				"projectID": projectID,
+				"number":    number}, map[string]interface{}{
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.Interface.Approve(ctx, projectID, number)
+}
+
 // GetCurrentUser implements Interface
 func (_d InterfaceWithTracing) GetCurrentUser(ctx context.Context) (u1 git.User, err error) {
 	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "Interface.GetCurrentUser")

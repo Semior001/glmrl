@@ -169,9 +169,15 @@ func (s *Service) listPRs(ctx context.Context, req ListPRsRequest) ([]git.PullRe
 	return prs, err
 }
 
+// Approve approves the pull request.
+func (s *Service) Approve(ctx context.Context, projectID string, number int) error {
+	return s.eng.Approve(ctx, projectID, number)
+}
+
 //go:generate gowrap gen -g -p . -i tracingService -t opentelemetry -o service_trace_gen.go
 
 // tracingService defines a list of Service methods to generate a tracing wrapper.
 type tracingService interface {
 	ListPullRequests(ctx context.Context, req ListPRsRequest) ([]git.PullRequest, error)
+	Approve(ctx context.Context, pID string, prNum int) error
 }

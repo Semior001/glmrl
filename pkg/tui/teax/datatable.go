@@ -2,6 +2,7 @@ package teax
 
 import (
 	"fmt"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,7 +25,12 @@ type Column[T any] struct {
 // Actor is a data source for a table.
 type Actor[T any] interface {
 	Load() ([]T, error)
-	OnEnter(T) error
+	// OnKey is called when a key is pressed on a row.
+	// Note: key might be a set of keys, e.g. "ctrl+c", it is important to
+	// consider all possible combinations.
+	// It is never called on "r", "ctrl+c" or "q" key presses, as they're
+	// handled by the table itself.
+	OnKey(key string, row int, val T) (hide bool, err error)
 }
 
 // RefreshingDataTable is a table, that loads its data from an
@@ -106,19 +112,39 @@ func (t *RefreshingDataTable[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg, ok := msg.(tea.KeyMsg); ok {
+		// if key is meant to be processed by the table, don't do anything
+		tblKey := []bool{
+			key.Matches(msg, table.DefaultKeyMap().LineUp),
+			key.Matches(msg, table.DefaultKeyMap().LineDown),
+			key.Matches(msg, table.DefaultKeyMap().PageUp),
+			key.Matches(msg, table.DefaultKeyMap().PageDown),
+			key.Matches(msg, table.DefaultKeyMap().HalfPageUp),
+			key.Matches(msg, table.DefaultKeyMap().HalfPageDown),
+			key.Matches(msg, table.DefaultKeyMap().LineDown),
+			key.Matches(msg, table.DefaultKeyMap().GotoTop),
+			key.Matches(msg, table.DefaultKeyMap().GotoBottom),
+		}
+
+		for _, k := range tblKey {
+			if k {
+				var cmd tea.Cmd
+				t.table, cmd = t.table.Update(msg)
+				return t, cmd
+			}
+		}
+
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "c+ctrl", "q":
 			return t, tea.Quit
-		case "enter":
-			return t, t.enterCmd()
 		case "r":
 			return t, t.reloadCmd()
+		default:
+			return t, t.keyCmd(msg.String())
 		}
 	}
 
-	var cmd tea.Cmd
-	t.table, cmd = t.table.Update(msg)
-	return t, cmd
+	log.Printf("[DEBUG][TUI-RefreshingDataTable] unhandled message: %#v", msg)
+	return t, nil
 }
 
 // View renders the table.
@@ -130,11 +156,6 @@ func (t *RefreshingDataTable[T]) View() string {
 		return fmt.Sprintf("failed to render table: %v", err)
 	}
 	return t.table.View()
-}
-
-func (t *RefreshingDataTable[T]) resize(w, h int) {
-	t.table.SetWidth(w)
-	t.table.SetHeight(h - 2 - t.BorrowedHeight) // cut off the status bar and the borrowed height
 }
 
 func (t *RefreshingDataTable[T]) reload() (updated bool, err error) {
@@ -161,6 +182,41 @@ func (t *RefreshingDataTable[T]) reload() (updated bool, err error) {
 	t.data.loadedIn = t.data.loadedIn.Round(100 * time.Millisecond)
 
 	return true, nil
+}
+
+func (t *RefreshingDataTable[T]) hide(idx int) {
+	t.data.mu.Lock()
+	defer t.data.mu.Unlock()
+
+	t.data.entries = append(t.data.entries[:idx], t.data.entries[idx+1:]...)
+
+	if len(t.data.entries) > 0 {
+		t.table.SetRows(lo.Map(t.data.entries, func(entry T, _ int) table.Row {
+			return lo.Map(t.Columns, func(col Column[T], _ int) string {
+				return col.Extract(entry)
+			})
+		}))
+	}
+}
+
+func (t *RefreshingDataTable[T]) entry(cursor int) (v T, ok bool) {
+	t.data.mu.Lock()
+	defer t.data.mu.Unlock()
+
+	if len(t.data.entries) == 0 {
+		return v, false
+	}
+
+	if len(t.data.entries) <= cursor || cursor < 0 {
+		return v, false
+	}
+
+	return t.data.entries[cursor], true
+}
+
+func (t *RefreshingDataTable[T]) resize(w, h int) {
+	t.table.SetWidth(w)
+	t.table.SetHeight(h - 2 - t.BorrowedHeight) // cut off the status bar and the borrowed height
 }
 
 func (t *RefreshingDataTable[T]) redrawColumns() error {
@@ -190,18 +246,27 @@ func (t *RefreshingDataTable[T]) redrawColumns() error {
 	return nil
 }
 
-func (t *RefreshingDataTable[T]) enterCmd() tea.Cmd {
+func (t *RefreshingDataTable[T]) keyCmd(key string) tea.Cmd {
 	return func() tea.Msg {
-		t.data.mu.Lock()
-		defer t.data.mu.Unlock()
+		cursor := t.table.Cursor()
 
-		if len(t.data.entries) == 0 {
+		entry, ok := t.entry(cursor)
+		if !ok {
+			log.Printf("[ERROR][TUI-RefreshingDataTable] cursor is out of bounds: %d", cursor)
 			return nil
 		}
 
-		if err := t.Actor.OnEnter(t.data.entries[t.table.Cursor()]); err != nil {
+		hide, err := t.Actor.OnKey(key, cursor, entry)
+		if err != nil {
 			log.Printf("[ERROR][TUI-RefreshingDataTable] OnEnter callback returned error: %v", err)
 			return tea.Quit
+		}
+
+		// we rather hide the entry instead of reloading the whole table, because reload
+		// takes time, and we don't want to block the UI for a long time
+		if hide {
+			log.Printf("[DEBUG][TUI-RefreshingDataTable] hiding entry at %d", cursor)
+			t.hide(cursor)
 		}
 
 		return nil

@@ -30,6 +30,8 @@ type Interface interface {
 	ListPullRequests(ctx context.Context, req ListPRsRequest) ([]git.PullRequest, error)
 	// GetCurrentUser returns the current user.
 	GetCurrentUser(ctx context.Context) (git.User, error)
+	// Approve approves the pull request.
+	Approve(ctx context.Context, projectID string, number int) error
 }
 
 // dumpBody dumps the reader's content to span's attributes and makes a new reader from it.

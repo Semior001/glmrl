@@ -29,7 +29,7 @@ type Gitlab struct {
 }
 
 // NewGitlab returns a new Gitlab service.
-func NewGitlab(token, baseURL string) (*Gitlab, error) {
+func NewGitlab(token, baseURL, version string) (*Gitlab, error) {
 	rq := requester.New(
 		http.Client{
 			Transport: otelhttp.NewTransport(
@@ -47,6 +47,7 @@ func NewGitlab(token, baseURL string) (*Gitlab, error) {
 			Timeout: time.Minute,
 		},
 		logger.New(logger.Func(log.Printf), logger.Prefix("[DEBUG]"), logger.WithBody).Middleware,
+		middleware.Header("User-Agent", "glmrl "+version),
 	)
 
 	cl, err := gl.NewClient(
@@ -344,4 +345,12 @@ func (g *Gitlab) buildThreads(history []git.Event) []git.Comment {
 	}
 
 	return lo.Map(lo.Values(threads), func(c *git.Comment, _ int) git.Comment { return *c })
+}
+
+// Approve approves a pull request.
+func (g *Gitlab) Approve(ctx context.Context, projectID string, number int) error {
+	if _, _, err := g.cl.MergeRequestApprovals.ApproveMergeRequest(projectID, number, nil, gl.WithContext(ctx)); err != nil {
+		return fmt.Errorf("call api: %w", err)
+	}
+	return nil
 }
