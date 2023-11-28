@@ -27,7 +27,7 @@ type options struct {
 	Config string `short:"c" long:"config" description:"path to config file" default:"~/.glmrl/config.yaml"`
 	Gitlab struct {
 		BaseURL string `yaml:"base_url" long:"base-url" env:"BASE_URL" description:"gitlab host"`
-		Token   string `yaml:"token" long:"token" env:"TOKEN" description:"gitlab token"`
+		Token   string `yaml:"token" long:"token" env:"TOKEN" description:"gitlab token with read_api scope"`
 	} `yaml:"gitlab" group:"gitlab" namespace:"gitlab" env-namespace:"GITLAB"`
 	List  cmd.List `yaml:"-" command:"list" description:"list pull requests"`
 	Debug bool     `long:"dbg" env:"DEBUG" description:"turn on debug mode"`

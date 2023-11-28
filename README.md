@@ -15,7 +15,7 @@ Application Options:
 
 gitlab:
       --gitlab.base-url=                      gitlab host [$GITLAB_BASE_URL]
-      --gitlab.token=                         gitlab token [$GITLAB_TOKEN]
+      --gitlab.token=                         gitlab token with read_api scope [$GITLAB_TOKEN]
 
 trace:
       --trace.enabled                         enable tracing [$TRACE_ENABLED]
@@ -76,7 +76,7 @@ I can review only the MRs that:
 - have a label "to-review",
 - are not approved by me,
 - doesn't have enough approvals,
-  - but I still want to see MRs with not enough approvals where I've been requested as a reviewer and didn't approve it,
+  - but I still want to see MRs with enough approvals where I've been requested as a reviewer and didn't approve it,
 - doesn't have my unresolved threads
   - but I still want to see MRs with my unresolved threads where my action is not the last (i.e. somebody replied in my thread and didn't resolve it).
 
