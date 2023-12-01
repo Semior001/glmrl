@@ -134,9 +134,9 @@ func (t *RefreshingDataTable[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
-		case "ctrl+c", "c+ctrl", "q":
+		case "ctrl+c", "c+ctrl", "q", "й":
 			return t, tea.Quit
-		case "r":
+		case "r", "к":
 			return t, t.reloadCmd()
 		default:
 			return t, t.keyCmd(msg.String())

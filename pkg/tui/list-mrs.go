@@ -95,7 +95,7 @@ func (l *ListPR) OnKey(key string, _ int, pr git.PullRequest) (reload bool, err 
 			return false, fmt.Errorf("copy URL to clipboard: %w", err)
 		}
 		return false, nil
-	case "a":
+	case "a", "ф":
 		if err = l.Service.Approve(l.ctx, pr.Project.ID, pr.Number); err != nil {
 			return false, fmt.Errorf("approve PR: %w", err)
 		}
